@@ -35,43 +35,38 @@ func playSound() {
 
 	<-done
 }
-func appointmentBot(p string) bool {
+func appointmentBot(p string, ch chan bool) {
 	c := colly.NewCollector()
-	returnval := false
 	c.OnResponse(func(r *colly.Response) {
-		returnval = strings.Contains(string(r.Body[:]), "Next Available")
+		result := strings.Contains(string(r.Body[:]), "Next Available")
+		if result {
+			playSound()
+		}
+		ch <- result
 	})
 
 	//Command to visit the website
-	c.Visit("https://telegov.njportal.com/njmvc/AppointmentWizard/" + p)
-
-	return returnval
+	c.Visit(p)
 }
 
 func main() {
 	if len(os.Args) < 2 {
 		panic("Need appointment type")
 	}
-	ticker := time.NewTicker(300 * time.Second)
 	quit := make(chan bool)
 
-	go func() {
-
-		for {
-			select {
-			case <-ticker.C:
-				r := appointmentBot(os.Args[1])
-				if r {
-					fmt.Print(r)
-					playSound()
-					quit <- r
-				}
-			case <-quit:
-				ticker.Stop()
-				return
-			}
+	i := 0
+	url := "https://telegov.njportal.com/njmvc/AppointmentWizard/" + os.Args[1]
+	fmt.Printf("Call to: %v", url)
+	for {
+		go appointmentBot(url, quit)
+		r := <-quit
+		if r {
+			fmt.Print(r)
+			return
 		}
-	}()
-
-	<-quit
+		fmt.Printf("\nLoop %v ", i)
+		time.Sleep(120 * time.Second)
+		i++
+	}
 }
